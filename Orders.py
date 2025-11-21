@@ -5,6 +5,8 @@ app = Flask(__name__)
 with open("Items/produtos.json", "r") as f:
     items_prices = json.load(f)
 
+items_prices_norm = {k.lower(): v for k, v in items_prices.items()}
+
 orders_db = {}
 next_id = 1
 
@@ -19,24 +21,27 @@ def create_order():
     if not data or "user_id" not in data or "items" not in data:
         return jsonify({"error": "Missing fields"}), 400
     
-     # Aceitar lista ou string separada por vírgulas
+      # Aceitar string ou lista
     items_input = data["items"]
     if isinstance(items_input, str):
-        items_list = [i.strip() for i in items_input.split(",")] if "," in items_input else [items_input.strip()]
+        items_list = [i.strip() for i in items_input.split(",")]
     elif isinstance(items_input, list):
         items_list = items_input
     else:
-        return jsonify({"error": "Items têm que ser separados por virgulas."}), 400
+        return jsonify({"error": "Items inválidos"}), 400
     
 
     total = 0
     unknown_items = []
-    for item in data["items"]:
-        if item in items_prices:
-            total += items_prices[item]
+    
+    for item in items_list:
+        item_lower = item.lower().strip()
+
+        if item_lower in items_prices_norm:
+            total += items_prices_norm[item_lower]
         else:
             unknown_items.append(item)
-    
+
     if unknown_items:
         return jsonify({"error": "Unknown items", "items": unknown_items}), 400
 
