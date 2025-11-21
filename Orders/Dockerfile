@@ -10,4 +10,6 @@ COPY . .
 
 EXPOSE 5600
 
-CMD ["python", "Orders.py"]
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python", "-u", "Orders.py"]

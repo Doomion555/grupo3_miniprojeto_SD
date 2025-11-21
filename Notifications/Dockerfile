@@ -10,4 +10,6 @@ COPY . .
 
 EXPOSE 5800
 
-CMD ["python", "Notifications.py"]
+ENV PYTHONUNBUFFERED=1
+
+CMD ["python","-u", "Notifications.py"]
