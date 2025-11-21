@@ -1,0 +1,20 @@
+version: "3.9"
+
+services:
+  orders:
+    build: ./Orders
+    container_name: orders_service
+    ports:
+      - "5600:5600"
+    volumes:
+      - ./Orders:/app
+    restart: unless-stopped
+
+  notifications:
+    build: ./Notifications
+    container_name: notifications_service
+    ports:
+      - "5800:5800"
+    volumes:
+      - ./Notifications:/app
+    restart: unless-stopped
