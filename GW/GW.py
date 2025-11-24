@@ -63,6 +63,20 @@ def criar_conta():
         return {"erro": "Username já existe"}, 400
     except Exception as e:
         return {"erro": str(e)}, 500
+    
+# ------------------------------
+#        COMO CRIAR CONTA
+# ------------------------------
+
+@app.route("/XPTO/hub", methods=["GET"])
+def xpto_hub():
+    return ("""\n=== XPTO HUB ===
+    Para criar uma conta faça:
+    [POST] /signup, no modo raw JSON com as seguintes credenciais: { 'username': 'nome_desejado', 'password': 'senha_desejada' }.
+    Para fazer login faça:
+    [POST] /login no modo raw JSON, com as credenciais da sua conta.
+    O login retorna um token que deve ser usado como header [Authorization: Bearer <token>] para aceder aos serviços.
+    """)
 
 # ------------------------------
 #        LOGIN
@@ -177,7 +191,6 @@ def orders_do_cliente():
         return {"erro": "Token inválido"}, 401
 
     try:
-        # Chamada para o Orders interno usando o username correto
         resp = requests.get(f"{ORDERS_URL}/orders/{username}", timeout=5)
         return resp.json(), resp.status_code
     except Exception as e:
