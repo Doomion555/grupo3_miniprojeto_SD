@@ -238,25 +238,18 @@ def pagamentos_do_cliente():
 # ------------------------------
 #      NOTIFICATIONS
 # ------------------------------
-@app.route("/notifications/payment", methods=["POST"])
-def enviar_notificacao_pagamento():
+@app.route("/notifications/me", methods=["GET"])
+def notificacoes_do_cliente():
     username = verificar_token()
     if not username:
         return {"erro": "Token inválido"}, 401
-    dados = request.get_json()
-    try:
-        resp = requests.post(f"{NOTIFICATIONS_URL}/notifications/payment", json=dados, timeout=5)
-        return resp.json(), resp.status_code
-    except Exception as e:
-        return {"erro": str(e)}, 500
 
-@app.route("/notifications/contas", methods=["GET"])
-def listar_contas():
-    username = verificar_token()
-    if not username:
-        return {"erro": "Token inválido"}, 401
     try:
-        resp = requests.get(f"{NOTIFICATIONS_URL}/notifications/contas", timeout=5)
+        resp = requests.get(
+            f"{NOTIFICATIONS_URL}/notifications/me",
+            headers={"X-Username": username},
+            timeout=5
+        )
         return resp.json(), resp.status_code
     except Exception as e:
         return {"erro": str(e)}, 500

@@ -1,117 +1,51 @@
-# aviso: as mensagens são feias de ler, temos que melhorar no futuro
-
 from flask import Flask, request, jsonify
-import mysql.connector
+import requests
 import os
-import random
 
 app = Flask(__name__)
 
-# Configuração DB
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_USER = os.getenv("DB_USER", "grupo3")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "baguette")
-DB_NAME = os.getenv("DB_NAME", "servicos")
+# URLs dos serviços internos
+ORDERS_URL = os.getenv("ORDERS_URL", "http://orders:5600")
+PAYMENTS_URL = os.getenv("PAYMENTS_URL", "http://payments:5700")
 
-def get_db_connection():
-    return mysql.connector.connect(
-        host=DB_HOST,
-        user=DB_USER,
-        password=DB_PASSWORD,
-        database=DB_NAME
-    )
-
-print("Serviço de notificações online com DB.")
+print("Serviço de notificações online sem acesso direto à DB.")
 
 # ------------------------------
-#     PAYMENT NOTIFICATION
+#     NOTIFICATIONS /me
 # ------------------------------
-@app.route("/notifications/payment", methods=["POST"])
-def payment_notification():
-    data = request.get_json()
-    print("Requisição recebida:", data)
+@app.route('/notifications/me', methods=['GET'])
+def notificacoes_do_cliente():
+    username = request.headers.get('X-Username')
+    if not username:
+        return jsonify({"erro": "Username não fornecido"}), 401
 
-    if not data or "username" not in data or "password" not in data:
-        response = {"error": "Missing fields"}
-        print("Erro:", response)
-        return jsonify(response), 400
+    # 1) Buscar orders do utilizador
+    try:
+        orders_resp = requests.get(f"{ORDERS_URL}/orders/{username}", timeout=5)
+        orders_data = orders_resp.json() if orders_resp.status_code == 200 else []
+    except Exception as e:
+        orders_data = {"erro": f"Falha ao contactar Orders: {str(e)}"}
 
-    username = data["username"]
-    password = data["password"]
-    print(f"A pesquisar utilizador: {username}")
+    # 2) Buscar payments do utilizador
+    try:
+        payments_resp = requests.get(
+            f"{PAYMENTS_URL}/payments/me",
+            headers={"X-Username": username},
+            timeout=5
+        )
+        payments_data = payments_resp.json() if payments_resp.status_code == 200 else []
+    except Exception as e:
+        payments_data = {"erro": f"Falha ao contactar Payments: {str(e)}"}
 
-    # conectar DB
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    cursor.execute("SELECT user_id, username, password, wallet FROM GW WHERE username = %s", (username,))
-    user_row = cursor.fetchone()
-    print(f"Resultado da pesquisa na DB: {user_row}")
-
-    if not user_row:
-        cursor.close()
-        conn.close()
-        response = {"error": "User not found"}
-        print("Erro:", response)
-        return jsonify(response), 404
-
-    # verificar password
-    if password != user_row["password"]:
-        cursor.close()
-        conn.close()
-        response = {"error": "Invalid password"}
-        print("Erro:", response)
-        return jsonify(response), 401
-
-    print("Password correta inserida.")
-
-    # roll the dice!
-    status = "success" if random.random() < 0.5 else "failed"
-    print(f"Status do pagamento decidido internamente: {status}")
-
-    amount = float(user_row["wallet"])
-    print(f"Valor do pagamento retirado da wallet: {amount}")
-
-    if status == "success":
-        message = f"Pagamento de {amount} realizado com sucesso para {username} (Account ID: {user_row['user_id']})."
-    else:
-        message = f"Pagamento de {amount} falhou para {username} (Account ID: {user_row['user_id']})."
-
-    print(f"Mensagem final gerada: {message}")
-
-    response = {
-        "notification": message,
-        "status": status
-    }
-
-    cursor.close()
-    conn.close()
-
-    print("Resposta enviada:", response, "\n")
-    return jsonify(response)
-
+    # 3) Resposta final agregada
+    return jsonify({
+        "username": username,
+        "orders": orders_data,
+        "payments": payments_data
+    }), 200
 
 # ------------------------------
-#       LIST ACCOUNTS (DEBUG)
-# ------------------------------
-@app.route("/notifications/contas", methods=["GET"])
-def list_accounts():
-    print("[LIST ACCOUNTS] Fetching all accounts from DB")
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
-
-    cursor.execute("SELECT user_id, username, wallet FROM GW")
-    accounts = cursor.fetchall()
-
-    cursor.close()
-    conn.close()
-    print(f"[LIST ACCOUNTS] Retrieved {len(accounts)} accounts:", accounts, "\n")
-    return jsonify(accounts)
-
-
-# ------------------------------
-#           RUN
+# RUN
 # ------------------------------
 if __name__ == "__main__":
-    print("Servidor de notificações a correr em http://0.0.0.0:5800\n")
     app.run(host="0.0.0.0", port=5800)
