@@ -19,6 +19,47 @@ def get_db():
         database=DB_NAME
     )
 
+@app.route("/payments/me", methods=["GET"])
+def pagamentos_do_cliente():
+    username = request.headers.get("X-Username")  # username enviado pelo GW
+    if not username:
+        return jsonify({"erro": "Username não fornecido"}), 401
+
+    conn = get_db()
+    cursor = conn.cursor(dictionary=True)
+
+    # Buscar o user_id do username
+    cursor.execute("SELECT user_id FROM GW WHERE username=%s", (username,))
+    row = cursor.fetchone()
+    if not row:
+        cursor.close()
+        conn.close()
+        return jsonify({"erro": "Utilizador não encontrado"}), 404
+
+    user_id = row["user_id"]
+
+    cursor.execute("""
+        SELECT 
+            Orders.order_id,
+            Orders.items,
+            Orders.total,
+            Orders.status AS order_status,
+            Payments.payment_id,
+            Payments.status AS payment_status,
+            Payments.created_at AS payment_date
+        FROM Orders
+        LEFT JOIN Payments ON Orders.order_id = Payments.order_id
+        WHERE Orders.user_id = %s
+        ORDER BY Orders.created_at DESC
+    """, (user_id,))
+
+    pagamentos = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    return jsonify(pagamentos), 200
+
+
 # ------------------------------------
 # PROCESS PAYMENT
 # ------------------------------------

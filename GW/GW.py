@@ -221,6 +221,19 @@ def processar_pagamento():
         return resp.json(), resp.status_code
     except Exception as e:
         return {"erro": str(e)}, 500
+    
+@app.route("/payments/me", methods=["GET"])
+def pagamentos_do_cliente():
+    username = verificar_token()
+    if not username:
+        return {"erro": "Token inválido"}, 401
+
+    try:
+        resp = requests.get(f"{PAYMENTS_URL}/payments/me", headers={"X-Username": username}, timeout=5)
+        return resp.json(), resp.status_code
+    except Exception as e:
+        return {"erro": str(e)}, 500
+
 
 # ------------------------------
 #      NOTIFICATIONS
