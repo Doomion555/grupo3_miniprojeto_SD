@@ -1,5 +1,10 @@
 -- init.sql simplificado
+CREATE DATABASE IF NOT EXISTS servicos;
 USE servicos;
+
+-- 0) Garantir utilizador compatível com mysql_native_password
+ALTER USER 'grupo3'@'%' IDENTIFIED WITH mysql_native_password BY 'baguette';
+FLUSH PRIVILEGES;
 
 -- 1) Tabela GW (users)
 CREATE TABLE IF NOT EXISTS GW (
@@ -41,8 +46,3 @@ CREATE TABLE IF NOT EXISTS Notifications (
     FOREIGN KEY (user_id) REFERENCES GW(user_id) ON DELETE CASCADE,
     FOREIGN KEY (payment_id) REFERENCES Payments(payment_id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
--- 5) Inserir utilizadores iniciais (opcional)
-INSERT IGNORE INTO GW (username, password, wallet) VALUES
-  ('rodrigo', '1234', 50.00),
-  ('joao',   '4321', 50.00);

@@ -37,40 +37,31 @@ def create_order():
     print(f"[CREATE ORDER] Received data: {data}")
 
     if not data or "items" not in data:
-        print("[CREATE ORDER] Missing 'items' field in request")
         return jsonify({"error": "Missing items"}), 400
 
-    # Aceitar string ou lista
     items_input = data["items"]
-    if isinstance(items_input, str):
-        items_list = [i.strip() for i in items_input.split(",")]
-    elif isinstance(items_input, list):
-        items_list = items_input
-    else:
-        print("[CREATE ORDER] Invalid items format")
-        return jsonify({"error": "Items inválidos"}), 400
+    items_list = [i.strip() for i in items_input.split(",")] if isinstance(items_input, str) else items_input
+
+    user_id = data.get("user_id")
+    if not user_id:
+        return jsonify({"error": "user_id obrigatório"}), 400
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    # Buscar um utilizador (por agora apenas o primeiro)
-    cursor.execute("SELECT user_id, username FROM GW LIMIT 1")
+    # Buscar username correto pelo user_id
+    cursor.execute("SELECT username FROM GW WHERE user_id=%s", (user_id,))
     user_row = cursor.fetchone()
-    print(f"[CREATE ORDER] Selected user: {user_row}")
-
     if not user_row:
         cursor.close()
         conn.close()
-        print("[CREATE ORDER] No users found in DB")
-        return jsonify({"error": "No users found in DB"}), 500
+        return jsonify({"error": "Utilizador não encontrado"}), 404
 
-    user_id = user_row["user_id"]
     username = user_row["username"]
 
-    # Calcular total
+    # Calcular total...
     total = 0
     unknown_items = []
-
     for item in items_list:
         item_lower = item.lower().strip()
         if item_lower in items_prices_norm:
@@ -81,21 +72,15 @@ def create_order():
     if unknown_items:
         cursor.close()
         conn.close()
-        print(f"[CREATE ORDER] Unknown items: {unknown_items}")
-        return jsonify({
-            "error": "Unknown items",
-            "items": unknown_items
-        }), 400
+        return jsonify({"error": "Unknown items", "items": unknown_items}), 400
 
-    # Inserir na DB
+    # Inserir order
     cursor.execute(
         "INSERT INTO Orders (user_id, items, total, status) VALUES (%s, %s, %s, %s)",
         (user_id, ",".join(items_list), total, "pending")
     )
     conn.commit()
     order_id = cursor.lastrowid
-    print(f"[CREATE ORDER] Order created with ID {order_id} for user {username}")
-
     cursor.close()
     conn.close()
 

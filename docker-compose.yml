@@ -253,6 +253,31 @@ services:
     networks:
       - loki
 
+  payments:
+    build: ./Payments
+    container_name: payments_service
+    ports:
+      - "5700:5700"
+    volumes:
+      - ./Payments:/app
+      - ./Listas:/app/Listas   # Para produtos.json
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      DB_HOST: db
+      DB_USER: grupo3
+      DB_PASSWORD: baguette
+      DB_NAME: servicos
+    logging:
+      driver: loki
+      options:
+        loki-url: "http://gateway:3100/loki/api/v1/push"
+        loki-retries: "5"
+        loki-batch-size: "400"
+    networks:
+      - loki
+
   notifications:
     build: ./Notifications
     container_name: notifications_service
@@ -274,6 +299,31 @@ services:
          loki-url: "http://gateway:3100/loki/api/v1/push"
          loki-retries: "5"
          loki-batch-size: "400"
+    networks:
+      - loki
 
+  gw:
+    build: ./GW        # pasta onde tens o código do Gateway
+    container_name: gw_service
+    ports:
+      - "5863:5863"    # porta do Gateway
+    volumes:
+      - ./GW:/app
+    restart: unless-stopped
+    depends_on:
+      - orders
+      - payments
+      - notifications
+      - db
+    environment:
+      ORDERS_URL: http://orders_service:5600
+      PAYMENTS_URL: http://payments_service:5700
+      NOTIFICATIONS_URL: http://notifications_service:5800
+    logging:
+      driver: loki
+      options:
+        loki-url: "http://gateway:3100/loki/api/v1/push"
+        loki-retries: "5"
+        loki-batch-size: "400"
     networks:
       - loki
