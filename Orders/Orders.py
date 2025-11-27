@@ -1,5 +1,3 @@
-# depois temos que mudar os logs para ficarem mais bonitos, ja tive q refazer esta meda umas 5 vezes e ja tou farto 
-
 from flask import Flask, request, jsonify
 import mysql.connector
 import json
@@ -14,6 +12,7 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "baguette")
 DB_NAME = os.getenv("DB_NAME", "servicos")
 
 def get_db_connection():
+    print("[DB] Abrindo conexão com a base de dados")
     return mysql.connector.connect(
         host=DB_HOST,
         user=DB_USER,
@@ -37,6 +36,7 @@ def create_order():
     print(f"[CREATE ORDER] Received data: {data}")
 
     if not data or "items" not in data:
+        print("[CREATE ORDER] Missing items in request")
         return jsonify({"error": "Missing items"}), 400
 
     items_input = data["items"]
@@ -44,20 +44,23 @@ def create_order():
 
     user_id = data.get("user_id")
     if not user_id:
+        print("[CREATE ORDER] user_id obrigatório")
         return jsonify({"error": "user_id obrigatório"}), 400
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    # Buscar username correto pelo user_id
+    print(f"[CREATE ORDER] Buscando username para user_id: {user_id}")
     cursor.execute("SELECT username FROM GW WHERE user_id=%s", (user_id,))
     user_row = cursor.fetchone()
     if not user_row:
+        print("[CREATE ORDER] Utilizador não encontrado")
         cursor.close()
         conn.close()
         return jsonify({"error": "Utilizador não encontrado"}), 404
 
     username = user_row["username"]
+    print(f"[CREATE ORDER] Username encontrado: {username}")
 
     # Calcular total...
     total = 0
@@ -70,6 +73,7 @@ def create_order():
             unknown_items.append(item)
 
     if unknown_items:
+        print(f"[CREATE ORDER] Itens desconhecidos: {unknown_items}")
         cursor.close()
         conn.close()
         return jsonify({"error": "Unknown items", "items": unknown_items}), 400
@@ -84,6 +88,7 @@ def create_order():
     cursor.close()
     conn.close()
 
+    print(f"[CREATE ORDER] Order criada com sucesso: {order_id}")
     return jsonify({
         "order_id": order_id,
         "username": username,
@@ -154,6 +159,7 @@ def get_orders_by_username(username):
     if orders:
         return jsonify(orders)
 
+    print(f"[GET ORDERS BY USERNAME] No orders found for {username}")
     return jsonify({"error": "No orders found for this username"}), 404
 
 
@@ -173,7 +179,9 @@ def order_fields():
 @app.route("/orders/cancel", methods=["POST"])
 def cancelar_order():
     data = request.get_json()
+    print(f"[CANCEL ORDER] Dados recebidos: {data}")
     if not data or "order_id" not in data:
+        print("[CANCEL ORDER] order_id obrigatório")
         return jsonify({"error": "order_id obrigatório"}), 400
 
     order_id = data["order_id"]
@@ -181,29 +189,29 @@ def cancelar_order():
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
 
-    # 1) Verificar se a order existe
+    print(f"[CANCEL ORDER] Verificando order_id: {order_id}")
     cursor.execute("SELECT * FROM Orders WHERE order_id=%s", (order_id,))
     order = cursor.fetchone()
     if not order:
+        print("[CANCEL ORDER] Order não encontrada")
         cursor.close()
         conn.close()
         return jsonify({"error": "Order não encontrada"}), 404
 
-    # 2) Só cancelar se estiver pending
     if order["status"].lower() != "pending":
+        print(f"[CANCEL ORDER] Order não pode ser cancelada, status: {order['status']}")
         cursor.close()
         conn.close()
         return jsonify({
             "error": f"Order não pode ser cancelada porque está '{order['status']}'"
         }), 400
 
-    # 3) Atualizar status para cancelled
     cursor.execute("UPDATE Orders SET status='cancelled' WHERE order_id=%s", (order_id,))
     conn.commit()
-
     cursor.close()
     conn.close()
 
+    print(f"[CANCEL ORDER] Order cancelada com sucesso: {order_id}")
     return jsonify({
         "success": True,
         "order_id": order_id,

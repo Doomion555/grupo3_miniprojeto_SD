@@ -12,6 +12,7 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "baguette")
 DB_NAME = os.getenv("DB_NAME", "servicos")
 
 def get_db():
+    print("[DB] Abrindo conexão com a base de dados")
     return mysql.connector.connect(
         host=DB_HOST,
         user=DB_USER,
@@ -22,7 +23,10 @@ def get_db():
 @app.route("/payments/me", methods=["GET"])
 def pagamentos_do_cliente():
     username = request.headers.get("X-Username")  # username enviado pelo GW
+    print(f"[PAYMENTS ME] Requisição recebida para username: {username}")
+
     if not username:
+        print("[PAYMENTS ME] Username não fornecido")
         return jsonify({"erro": "Username não fornecido"}), 401
 
     conn = get_db()
@@ -32,11 +36,13 @@ def pagamentos_do_cliente():
     cursor.execute("SELECT user_id FROM GW WHERE username=%s", (username,))
     row = cursor.fetchone()
     if not row:
+        print(f"[PAYMENTS ME] Utilizador {username} não encontrado")
         cursor.close()
         conn.close()
         return jsonify({"erro": "Utilizador não encontrado"}), 404
 
     user_id = row["user_id"]
+    print(f"[PAYMENTS ME] user_id encontrado: {user_id}")
 
     cursor.execute("""
         SELECT 
@@ -54,6 +60,8 @@ def pagamentos_do_cliente():
     """, (user_id,))
 
     pagamentos = cursor.fetchall()
+    print(f"[PAYMENTS ME] {len(pagamentos)} pagamentos encontrados para {username}")
+
     cursor.close()
     conn.close()
 
@@ -66,11 +74,14 @@ def pagamentos_do_cliente():
 @app.route("/payments", methods=["POST"])
 def process_payment():
     data = request.get_json()
+    print(f"[PROCESS PAYMENT] Dados recebidos: {data}")
 
     if not data or "order_id" not in data:
+        print("[PROCESS PAYMENT] Missing order_id")
         return jsonify({"error": "Missing order_id"}), 400
 
     order_id = data["order_id"]
+    print(f"[PROCESS PAYMENT] Processando order_id: {order_id}")
 
     conn = get_db()
     cursor = conn.cursor(dictionary=True)
@@ -87,11 +98,13 @@ def process_payment():
     row = cursor.fetchone()
 
     if not row:
+        print(f"[PROCESS PAYMENT] Order {order_id} não encontrada")
         cursor.close()
         conn.close()
         return jsonify({"error": "Order not found"}), 404
 
     if row["status"] != "pending":
+        print(f"[PROCESS PAYMENT] Order {order_id} já processada, status: {row['status']}")
         cursor.close()
         conn.close()
         return jsonify({"error": "Order already processed"}), 400
@@ -101,10 +114,13 @@ def process_payment():
     user_id = row["user_id"]
     items_list = [i.strip() for i in row["items"].split(",")]
 
+    print(f"[PROCESS PAYMENT] Total: {total}, Wallet: {wallet}, User ID: {user_id}")
+
     # 2) Verificar wallet
     if wallet >= total:
         payment_status = "Pagamento sucedido"
         new_wallet = wallet - total
+        print(f"[PROCESS PAYMENT] Wallet suficiente. Novo saldo: {new_wallet}")
 
         cursor.execute(
             "UPDATE GW SET wallet = %s WHERE user_id = %s",
@@ -115,9 +131,10 @@ def process_payment():
             "UPDATE Orders SET status = 'completed' WHERE order_id = %s",
             (order_id,)
         )
-
+        print(f"[PROCESS PAYMENT] Order {order_id} marcada como completed")
     else:
         payment_status = "failed"
+        print(f"[PROCESS PAYMENT] Wallet insuficiente. Order {order_id} cancelada")
 
         cursor.execute(
             "UPDATE Orders SET status = 'cancelled' WHERE order_id = %s",
@@ -131,6 +148,7 @@ def process_payment():
     )
     conn.commit()
     payment_id = cursor.lastrowid
+    print(f"[PROCESS PAYMENT] Entrada de pagamento criada: {payment_id}, status: {payment_status}")
 
     cursor.close()
     conn.close()
@@ -144,9 +162,10 @@ def process_payment():
 
 @app.route("/")
 def home():
+    print("[HOME] Payments service online")
     return {"message": "Payments service online"}, 200
 
 
 if __name__ == "__main__":
+    print("[STARTING SERVER] Payments service running on port 5700")
     app.run(host="0.0.0.0", port=5700)
-
