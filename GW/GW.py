@@ -206,6 +206,22 @@ def produtos_disponiveis():
         return resp.json(), resp.status_code
     except Exception as e:
         return {"erro": str(e)}, 500
+    
+@app.route("/orders/cancel", methods=["POST"])
+def gw_cancel_order():
+    username = verificar_token()
+    if not username:
+        return {"erro": "Token inválido"}, 401
+
+    dados = request.get_json()
+    if not dados:
+        return {"erro": "Corpo da request vazio"}, 400
+
+    try:
+        resp = requests.post(f"{ORDERS_URL}/orders/cancel", json=dados, timeout=5)
+        return resp.json(), resp.status_code
+    except Exception as e:
+        return {"erro": str(e)}, 500
 
 # ------------------------------
 #        PAYMENTS

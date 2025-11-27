@@ -167,6 +167,50 @@ def order_fields():
         "items": list(items_prices.keys())
     })
 
+# ------------------------------
+#        CANCELAR ORDER
+# ------------------------------
+@app.route("/orders/cancel", methods=["POST"])
+def cancelar_order():
+    data = request.get_json()
+    if not data or "order_id" not in data:
+        return jsonify({"error": "order_id obrigatório"}), 400
+
+    order_id = data["order_id"]
+
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # 1) Verificar se a order existe
+    cursor.execute("SELECT * FROM Orders WHERE order_id=%s", (order_id,))
+    order = cursor.fetchone()
+    if not order:
+        cursor.close()
+        conn.close()
+        return jsonify({"error": "Order não encontrada"}), 404
+
+    # 2) Só cancelar se estiver pending
+    if order["status"].lower() != "pending":
+        cursor.close()
+        conn.close()
+        return jsonify({
+            "error": f"Order não pode ser cancelada porque está '{order['status']}'"
+        }), 400
+
+    # 3) Atualizar status para cancelled
+    cursor.execute("UPDATE Orders SET status='cancelled' WHERE order_id=%s", (order_id,))
+    conn.commit()
+
+    cursor.close()
+    conn.close()
+
+    return jsonify({
+        "success": True,
+        "order_id": order_id,
+        "status": "cancelled",
+        "message": "Order cancelada com sucesso"
+    }), 200
+
 
 # ------------------------------
 #           RUN
