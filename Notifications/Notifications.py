@@ -115,7 +115,7 @@ def order_created():
         f"Olá {username},\n\n"
         f"Sua ordem {order_id} foi criada com sucesso e está pendente de pagamento.\n"
         f"Itens: {', '.join(items)}\n"
-        f"Total: {total:.2f}€\n\nObrigado por comprar conosco!"
+        f"Total: {total:.2f}€\n\nObrigado por comprar connosco!"
     )
 
     enviar_email(email, assunto, mensagem)
@@ -158,7 +158,7 @@ def payment_status():
         mensagem = f"O pagamento da ordem {order_id} não foi concluído por saldo insuficiente."
     elif status == "cancelled":
         assunto = "Ordem Cancelada"
-        mensagem = f"A sua ordem {order_id} no valor de {total:.2f}€ foi cancelada."
+        mensagem = f"A sua ordem, com numero identificador {order_id} no valor de {total:.2f}€ foi cancelada."
     else:
         assunto = "Pagamento Pendente"
         mensagem = f"A ordem {order_id} no valor de {total:.2f}€ está pendente de pagamento."
