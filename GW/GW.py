@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 import requests
 import os
 import uuid
@@ -6,22 +6,20 @@ import mysql.connector
 
 app = Flask(__name__)
 
-# URLs dos serviços internos (usando variáveis de ambiente do docker-compose)
+# URLs dos serviços internos
 ORDERS_URL = os.getenv("ORDERS_URL", "http://orders:5600")
 PAYMENTS_URL = os.getenv("PAYMENTS_URL", "http://payments:5700")
 NOTIFICATIONS_URL = os.getenv("NOTIFICATIONS_URL", "http://notifications:5800")
 
-# Lista de tokens válidos em memória
+# Armazenamento em memória dos tokens válidos
 tokens_validos = {}
 
-# Registos pendentes de criação de conta
+# Armazenamento em memória dos registos pendentes de criação de conta
 pending_signups = {}
 
-# ------------------------------
-#      FUNÇÕES AUXILIARES
-# ------------------------------
-def get_db_connection():
-    print("[DB] Abrindo conexão com a base de dados")
+# Função para obter ligação à base de dados MySQL
+def obter_conexao_bd():
+    print("[BD] A abrir ligação à base de dados")
     return mysql.connector.connect(
         host="db",
         user="grupo3",
@@ -30,27 +28,67 @@ def get_db_connection():
         auth_plugin='mysql_native_password'
     )
 
+# Função para verificar se o token enviado no header é válido
 def verificar_token():
     btoken = request.headers.get("Authorization")
     if not btoken or not btoken.startswith("Bearer "):
-        print("[AUTH] Token ausente ou inválido no header")
+        print("[AUTENTICAÇÃO] Token ausente ou inválido no header")
         return None
     token = btoken.split()[1]
     username = tokens_validos.get(token)
-    print(f"[AUTH] Token verificado para o username: {username}")
+    print(f"[AUTENTICAÇÃO] Token verificado para o utilizador: {username}")
     return username
 
-# ------------------------------
-#        BOAS VINDAS
-# ------------------------------
+# Rota de boas-vindas
 @app.route("/", methods=["GET"])
 def boas_vindas():
     print("[GW] Requisição de boas-vindas recebida")
-    return {"mensagem": "Bem-vindo à Loja XPTO"}, 200
+    texto = (
+        "=== 🛒 BEM-VINDO À XPTO STORE 🛒 ===\n\n"
+        "Através deste Gateway pode criar conta, fazer login, criar encomendas,\n"
+        "consultar produtos, efetuar pagamentos e ver notificações.\n\n"
+        "👉 ROTAS DISPONÍVEIS:\n\n"
+        "🔐 AUTENTICAÇÃO\n"
+        "- [POST] /signup\n"
+        "  Cria uma nova conta.\n"
+        "  JSON: { \"username\": \"...\", \"password\": \"...\", \"email\": \"...\" }\n\n"
+        "- [POST] /signup/confirm\n"
+        "  Confirma a conta com o código enviado para o email.\n\n"
+        "- [POST] /login\n"
+        "  Faz login e devolve um token.\n"
+        "  JSON: { \"username\": \"...\", \"password\": \"...\" }\n\n"
+        "- [POST] /logout\n"
+        "  Termina a sessão ativa.\n\n"
+        "💰 WALLET\n"
+        "- [GET] /wallet\n"
+        "  Mostra o saldo da carteira.\n\n"
+        "📦 ORDERS\n"
+        "- [GET] /orders/fields\n"
+        "  Lista os produtos disponíveis.\n\n"
+        "- [POST] /orders/new\n"
+        "  Cria uma nova encomenda.\n"
+        "  JSON: { \"items\": \"Produto\" }\n\n"
+        "- [GET] /orders/me\n"
+        "  Lista as encomendas do utilizador.\n\n"
+        "- [POST] /orders/cancel\n"
+        "  Cancela uma encomenda.\n"
+        "  JSON: { \"order_id\": ... }\n\n"
+        "💳 PAYMENTS\n"
+        "- [POST] /payments\n"
+        "  Processa o pagamento de uma encomenda.\n\n"
+        "- [GET] /payments/me\n"
+        "  Lista os pagamentos do utilizador.\n\n"
+        "📧 NOTIFICAÇÕES\n"
+        "- [GET] /notifications/me\n"
+        "  Mostra todas as notificações enviadas ao utilizador.\n\n"
+        "⚠️ IMPORTANTE\n"
+        "Todas as rotas protegidas devem incluir o header:\n"
+        "Authorization: Bearer <token>\n\n"
+        "=== XPTO STORE – Tudo num só lugar! ===\n"
+    )
+    return Response(texto, mimetype="text/plain")
 
-# ------------------------------
-#        CRIAR CONTA
-# ------------------------------
+# Rota para criar a conta
 @app.route("/signup", methods=["POST"])
 def criar_conta():
     dados = request.get_json()
@@ -60,19 +98,20 @@ def criar_conta():
     email = dados.get("email")
 
     if not username or not password or not email:
-        print("[SIGNUP] Falta username ou password")
+        print("[SIGNUP] Falta username, password ou email")
         return {"erro": "username, password e email obrigatórios"}, 400
 
     try:
-        conn = get_db_connection()
+        conn = obter_conexao_bd()
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM GW WHERE username=%s OR email=%s", (username, email))
-        existente = cursor.fetchone()
+        registo_bd = cursor.fetchone()
         cursor.close()
         conn.close()
-        if existente:
+        if registo_bd:
             print(f"[SIGNUP] Username ou email já existente: {username}, {email}")
             return {"erro": "Username ou email já existente"}, 409
+
         try:
             resp = requests.post(
                 f"{NOTIFICATIONS_URL}/notifications/send_verification",
@@ -95,73 +134,8 @@ def criar_conta():
 
     except Exception as e:
         return {"erro": f"Erro interno: {str(e)}"}, 500
-# ------------------------------
-#        COMO CRIAR CONTA
-# ------------------------------
-@app.route("/XPTO/hub", methods=["GET"])
-def xpto_hub():
-    print("[GW] /XPTO/hub solicitado")
-    return ("""\n=== XPTO HUB ===
-    Para criar uma conta faça:
-    [POST] /signup, no modo raw JSON com as seguintes credenciais: { 'username': 'nome_desejado', 'password': 'senha_desejada' }.
-    Para fazer login faça:
-    [POST] /login no modo raw JSON, com as credenciais da sua conta.
-    O login retorna um token que deve ser usado como header [Authorization: Bearer <token>] para aceder aos serviços.
-    """)
 
-# ------------------------------
-#        LOGIN
-# ------------------------------
-@app.route("/login", methods=["POST"])
-def login():
-    dados = request.get_json()
-    print(f"[LOGIN] Dados recebidos: {dados}")
-    username = dados.get("username")
-    password = dados.get("password")
-
-    if not username or not password:
-        print("[LOGIN] Falta username ou password")
-        return {"erro": "username e password obrigatórios"}, 400
-
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM GW WHERE username=%s AND password=%s", (username, password))
-        user = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        if not user:
-            print(f"[LOGIN] Credenciais inválidas para {username}")
-            return {"erro": "Credenciais inválidas"}, 401
-
-        # Gerar token e guardar em memória
-        token = str(uuid.uuid4())
-        tokens_validos[token] = username
-        print(f"[LOGIN] Login bem-sucedido. Token gerado para {username}: {token}")
-        return {"token": token}, 200
-    except Exception as e:
-        print(f"[LOGIN] Erro: {e}")
-        return {"erro": str(e)}, 500
-    
-# ------------------------------
-#        LOGOUT
-# ------------------------------
-@app.route("/logout", methods=["POST"])
-def logout():
-    username = verificar_token()
-    if not username:
-        print("[LOGOUT] Token inválido")
-        return {"erro": "Token inválido"}, 401
-    # Remove o token da lista de tokens válidos
-    for token, user in list(tokens_validos.items()):
-        if user == username:
-            del tokens_validos[token]
-            print(f"[LOGOUT] Token removido para {user}")
-    return {"mensagem": "Sessão terminada"}, 200
-    
-# ------------------------------
-#         CONFIRMAR SIGNUP
-# ------------------------------
+# Rota para confirmar signup
 @app.route("/signup/confirm", methods=["POST"])
 def confirmar_signup():
     dados = request.get_json() or {}
@@ -179,7 +153,7 @@ def confirmar_signup():
         return {"erro": "Código incorreto"}, 401
 
     try:
-        conn = get_db_connection()
+        conn = obter_conexao_bd()
         cursor = conn.cursor()
         cursor.execute(
             "INSERT INTO GW (username, password, email) VALUES (%s, %s, %s)",
@@ -195,192 +169,177 @@ def confirmar_signup():
     except Exception as e:
         return {"erro": f"Erro interno: {str(e)}"}, 500
 
+# Rota de login
+@app.route("/login", methods=["POST"])
+def login():
+    dados = request.get_json()
+    print(f"[LOGIN] Dados recebidos: {dados}")
+    username = dados.get("username")
+    password = dados.get("password")
 
+    if not username or not password:
+        return {"erro": "username e password obrigatórios"}, 400
+
+    try:
+        conn = obter_conexao_bd()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM GW WHERE username=%s AND password=%s", (username, password))
+        registo_bd = cursor.fetchone()
+        cursor.close()
+        conn.close()
+
+        if not registo_bd:
+            return {"erro": "Credenciais inválidas"}, 401
+
+        token = str(uuid.uuid4())
+        tokens_validos[token] = username
+        print(f"[LOGIN] Login bem-sucedido. Token gerado para {username}: {token}")
+        return {"token": token}, 200
+    except Exception as e:
+        return {"erro": str(e)}, 500
+
+# Rota de logout
+@app.route("/logout", methods=["POST"])
+def logout():
+    username = verificar_token()
+    if not username:
+        print("[LOGOUT] Token inválido")
+        return {"erro": "Token inválido"}, 401
+    for token, user in list(tokens_validos.items()):
+        if user == username:
+            del tokens_validos[token]
+            print(f"[LOGOUT] Token removido para {user}")
+    return {"mensagem": "Sessão terminada"}, 200
+
+# Rota para obter valor da carteira
 @app.route("/wallet", methods=["GET"])
 def get_wallet():
     username = verificar_token()
     if not username:
         return {"erro": "Token inválido"}, 401
 
-    conn = get_db_connection()
+    conn = obter_conexao_bd()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT wallet FROM GW WHERE username=%s", (username,))
-    row = cursor.fetchone()
+    registo_bd = cursor.fetchone()
     cursor.close()
     conn.close()
 
-    if not row:
+    if not registo_bd:
         print(f"[WALLET] Utilizador não encontrado: {username}")
         return {"erro": "Utilizador não encontrado"}, 404
 
-    print(f"[WALLET] Wallet de {username}: {row['wallet']}")
-    return {"username": username, "wallet": float(row["wallet"])}, 200
+    print(f"[WALLET] Carteira de {username}: {registo_bd['wallet']}")
+    return {"Carteira": float(registo_bd["wallet"])}, 200
 
-# ------------------------------
-#        ORDERS
-# ------------------------------
+# Rota para criar nova encomenda
 @app.route("/orders/new", methods=["POST"])
 def criar_pedido():
     username = verificar_token()
-    print(f"[ORDERS NEW] Username do token: {username}")
     if not username:
         return {"erro": "Token inválido"}, 401
 
     dados = request.get_json()
-    print(f"[ORDERS NEW] Dados recebidos: {dados}")
     if not dados:
-        return {"erro": "Corpo da request vazio"}, 400
+        return {"erro": "Corpo da requisição vazio"}, 400
 
-    # Buscar user_id correto do username do token
-    conn = get_db_connection()
+    conn = obter_conexao_bd()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("SELECT user_id FROM GW WHERE username=%s", (username,))
-    row = cursor.fetchone()
+    registo_bd = cursor.fetchone()
     cursor.close()
     conn.close()
 
-    if not row:
-        print(f"[ORDERS NEW] Utilizador não encontrado: {username}")
+    if not registo_bd:
         return {"erro": "Utilizador não encontrado"}, 404
 
-    dados['user_id'] = row['user_id']
-    print(f"[ORDERS NEW] user_id adicionado: {dados['user_id']}")
+    dados['user_id'] = registo_bd['user_id']
 
     try:
-        print(f"[ORDERS NEW] Chamando serviço Orders: {ORDERS_URL}/orders")
         resp = requests.post(f"{ORDERS_URL}/orders", json=dados, timeout=5)
-        print(f"[ORDERS NEW] Resposta do Orders: {resp.status_code}")
         return resp.json(), resp.status_code
     except Exception as e:
-        print(f"[ORDERS NEW] Erro ao chamar Orders: {e}")
         return {"erro": str(e)}, 500
 
-@app.route("/orders/list", methods=["GET"])
-def listar_orders():
-    username = verificar_token()
-    print(f"[ORDERS LIST] Username do token: {username}")
-    if not username:
-        return {"erro": "Token inválido"}, 401
-    try:
-        print(f"[ORDERS LIST] Chamando serviço Orders: {ORDERS_URL}/orders")
-        resp = requests.get(f"{ORDERS_URL}/orders", timeout=5)
-        print(f"[ORDERS LIST] Resposta do Orders: {resp.status_code}")
-        return resp.json(), resp.status_code
-    except Exception as e:
-        print(f"[ORDERS LIST] Erro ao chamar Orders: {e}")
-        return {"erro": str(e)}, 500
-
+# Rota para listar encomendas do utilizador
 @app.route("/orders/me", methods=["GET"])
 def orders_do_cliente():
     username = verificar_token()
-    print(f"[ORDERS ME] Username do token: {username}")
     if not username:
         return {"erro": "Token inválido"}, 401
     try:
-        print(f"[ORDERS ME] Chamando serviço Orders: {ORDERS_URL}/orders/{username}")
         resp = requests.get(f"{ORDERS_URL}/orders/{username}", timeout=5)
-        print(f"[ORDERS ME] Resposta do Orders: {resp.status_code}")
         return resp.json(), resp.status_code
     except Exception as e:
-        print(f"[ORDERS ME] Erro ao chamar Orders: {e}")
         return {"erro": str(e)}, 500
 
+# Rota para listar produtos disponíveis
 @app.route("/orders/fields", methods=["GET"])
 def produtos_disponiveis():
     username = verificar_token()
-    print(f"[ORDERS FIELDS] Username do token: {username}")
     if not username:
         return {"erro": "Token inválido"}, 401
     try:
-        print(f"[ORDERS FIELDS] Chamando serviço Orders: {ORDERS_URL}/orders/fields")
         resp = requests.get(f"{ORDERS_URL}/orders/fields", timeout=5)
-        print(f"[ORDERS FIELDS] Resposta do Orders: {resp.status_code}")
         return resp.json(), resp.status_code
     except Exception as e:
-        print(f"[ORDERS FIELDS] Erro ao chamar Orders: {e}")
         return {"erro": str(e)}, 500
 
+# Rota para cancelar encomenda
 @app.route("/orders/cancel", methods=["POST"])
 def gw_cancel_order():
     username = verificar_token()
-    print(f"[ORDERS CANCEL] Username do token: {username}")
     if not username:
         return {"erro": "Token inválido"}, 401
 
     dados = request.get_json()
-    print(f"[ORDERS CANCEL] Dados recebidos: {dados}")
     if not dados:
-        return {"erro": "Corpo da request vazio"}, 400
+        return {"erro": "Corpo da requisição vazio"}, 400
 
     try:
-        print(f"[ORDERS CANCEL] Chamando serviço Orders: {ORDERS_URL}/orders/cancel")
         resp = requests.post(f"{ORDERS_URL}/orders/cancel", json=dados, timeout=5)
-        print(f"[ORDERS CANCEL] Resposta do Orders: {resp.status_code}")
         return resp.json(), resp.status_code
     except Exception as e:
-        print(f"[ORDERS CANCEL] Erro ao chamar Orders: {e}")
         return {"erro": str(e)}, 500
 
-# ------------------------------
-#        PAYMENTS
-# ------------------------------
+# Rota para processar pagamento
 @app.route("/payments", methods=["POST"])
 def processar_pagamento():
     username = verificar_token()
-    print(f"[PAYMENTS] Username do token: {username}")
     if not username:
         return {"erro": "Token inválido"}, 401
     dados = request.get_json()
-    print(f"[PAYMENTS] Dados recebidos: {dados}")
     try:
-        print(f"[PAYMENTS] Chamando serviço Payments: {PAYMENTS_URL}/payments")
         resp = requests.post(f"{PAYMENTS_URL}/payments", json=dados, timeout=5)
-        print(f"[PAYMENTS] Resposta do Payments: {resp.status_code}")
         return resp.json(), resp.status_code
     except Exception as e:
-        print(f"[PAYMENTS] Erro ao chamar Payments: {e}")
         return {"erro": str(e)}, 500
 
+# Rota para listar pagamentos do utilizador
 @app.route("/payments/me", methods=["GET"])
 def pagamentos_do_cliente():
     username = verificar_token()
-    print(f"[PAYMENTS ME] Username do token: {username}")
     if not username:
         return {"erro": "Token inválido"}, 401
-
     try:
-        # Passar o username diretamente na URL
-        print(f"[PAYMENTS ME] Chamando serviço Payments: {PAYMENTS_URL}/payments/{username}")
         resp = requests.get(f"{PAYMENTS_URL}/payments/{username}", timeout=5)
-        print(f"[PAYMENTS ME] Resposta do Payments: {resp.status_code}")
         return resp.json(), resp.status_code
     except Exception as e:
-        print(f"[PAYMENTS ME] Erro ao chamar Payments: {e}")
         return {"erro": str(e)}, 500
 
-# ------------------------------
-#      NOTIFICATIONS
-# ------------------------------
+# Rota para listar notificações do utilizador
 @app.route("/notifications/me", methods=["GET"])
 def notificacoes_do_cliente():
     username = verificar_token()
-    print(f"[NOTIFICATIONS ME] Username do token: {username}")
     if not username:
         return {"erro": "Token inválido"}, 401
-
     try:
-        # Passar o username diretamente na URL
-        print(f"[NOTIFICATIONS ME] Chamando serviço Notifications: {NOTIFICATIONS_URL}/notifications/{username}")
         resp = requests.get(f"{NOTIFICATIONS_URL}/notifications/{username}", timeout=5)
-        print(f"[NOTIFICATIONS ME] Resposta do Notifications: {resp.status_code}")
         return resp.json(), resp.status_code
     except Exception as e:
-        print(f"[NOTIFICATIONS ME] Erro ao chamar Notifications: {e}")
         return {"erro": str(e)}, 500
 
-# ------------------------------
-# RUN
-# ------------------------------
+# Correr a aplicação Flask
 if __name__ == "__main__":
-    print("[GW] Iniciando Gateway na porta 5863")
+    print("[SERVIDOR] Gateway a correr na porta 5863")
     app.run(host="0.0.0.0", port=5863)

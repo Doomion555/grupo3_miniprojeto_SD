@@ -1,8 +1,7 @@
--- init.sql simplificado
 CREATE DATABASE IF NOT EXISTS servicos;
 USE servicos;
 
--- 0) Garantir utilizador compatível com mysql_native_password
+-- Garantir utilizador compatível com mysql_native_password
 ALTER USER 'grupo3'@'%' IDENTIFIED WITH mysql_native_password BY 'baguette';
 FLUSH PRIVILEGES;
 
@@ -21,7 +20,7 @@ CREATE TABLE IF NOT EXISTS Orders (
     user_id INT NOT NULL,
     items TEXT NOT NULL,
     total DECIMAL(10,2) NOT NULL,
-    status VARCHAR(20) DEFAULT 'pending',
+    status VARCHAR(20) DEFAULT 'pendente',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES GW(user_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
