@@ -8,7 +8,7 @@ import time
 from prometheus_client import Summary, Histogram
 
 # Metrica de latencia: medida em segundos
-REQUEST_LATENCY_HIST = Histogram('request_latency_seconds_hist', 'Latência das requests', ['endpoint'])
+REQUEST_LATENCY_HIST = Histogram('request_latency_seconds_gateway_hist', 'Latência das requests', ['endpoint'])
 
 app = Flask(__name__)
 metrics = PrometheusMetrics(app)  # adiciona métricas automaticamente
@@ -16,7 +16,7 @@ metrics = PrometheusMetrics(app)  # adiciona métricas automaticamente
 # URLs dos serviços internos
 ORDERS_URL = os.getenv("ORDERS_URL", "http://orders:5600")
 PAYMENTS_URL = os.getenv("PAYMENTS_URL", "http://payments:5700")
-NOTIFICATIONS_URL = os.getenv("NOTIFICATIONS_URL", "http://notifications:5800")
+NOTIFICATIONS_URL = os.getenv("NOTIFICATIONS_URL", "http://notifications_service:5800")
 
 # Armazenamento em memória dos tokens válidos
 tokens_validos = {}
