@@ -43,6 +43,3 @@ ruler:
 
 compactor:
   working_directory: /tmp/compactor
-
-
-

@@ -303,7 +303,7 @@ services:
       - loki
 
   gw:
-    build: ./GW        # pasta onde tens o código do Gateway
+    build: ./GW        
     container_name: gw_service
     ports:
       - "5863:5863"    # porta do Gateway
@@ -355,4 +355,3 @@ services:
       - /sys/fs/cgroup:/sys/fs/cgroup:ro
     networks:
       - loki
-
