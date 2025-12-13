@@ -119,8 +119,8 @@
             "type": "prometheus",
             "uid": "af6ikdsy96bcwd"
           },
-          "editorMode": "builder",
-          "expr": "sum(rate(request_latency_seconds_gateway_hist_sum{instance=\"gw_service:5863\"}[5m])) / (sum(rate(request_latency_seconds_gateway_hist_count{instance=\"gw_service:5863\"}[5m])))",
+          "editorMode": "code",
+          "expr": "sum(rate(request_latency_seconds_gateway_hist_sum{instance=\"gw_service:5863\"}[$__rate_interval])) / (sum(rate(request_latency_seconds_gateway_hist_count{instance=\"gw_service:5863\"}[$__rate_interval])))",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -610,5 +610,5 @@
   "timezone": "browser",
   "title": "Serviço Gateway",
   "uid": "ad6s94g",
-  "version": 35
+  "version": 36
 }
