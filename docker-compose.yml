@@ -339,6 +339,8 @@ services:
       - "9090:9090"
     networks:
       - loki
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
