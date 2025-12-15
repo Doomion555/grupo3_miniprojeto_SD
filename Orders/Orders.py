@@ -191,7 +191,8 @@ def obter_encomendas_por_username(username):
 @app.route("/orders/fields", methods=["GET"])
 def obter_itens_disponiveis():
     print("[ITENS DISPONÍVEIS] A enviar lista de itens disponíveis")
-    return jsonify({"items": list(precos_itens.keys())})
+    lista_itens = [{"nome": nome, "preco": preco} for nome, preco in precos_itens.items()]
+    return jsonify({"items": lista_itens})
 
 
 # ----------------------------------------
