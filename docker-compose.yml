@@ -210,11 +210,11 @@ services:
       - loki
   
 
-  flog:
-    image: mingrammer/flog
-    command: -f json -d 200ms -l
-    networks:
-      - loki
+#  flog:
+#    image: mingrammer/flog
+#    command: -f json -d 200ms -l
+#    networks:
+#      - loki
 
   db:
     image: mysql:8.0
@@ -248,12 +248,6 @@ services:
       DB_USER: grupo3
       DB_PASSWORD: baguette
       DB_NAME: servicos
-    logging:
-      driver: loki
-      options:
-        loki-url: "http://gateway:3100/loki/api/v1/push"
-        loki-retries: "5"
-        loki-batch-size: "400"
     networks:
       - loki
 
@@ -272,12 +266,6 @@ services:
       DB_USER: grupo3
       DB_PASSWORD: baguette
       DB_NAME: servicos
-    logging:
-      driver: loki
-      options:
-        loki-url: "http://gateway:3100/loki/api/v1/push"
-        loki-retries: "5"
-        loki-batch-size: "400"
     networks:
       - loki
 
@@ -296,12 +284,6 @@ services:
       DB_USER: grupo3
       DB_PASSWORD: baguette
       DB_NAME: servicos
-    logging:
-      driver: loki
-      options:
-         loki-url: "http://gateway:3100/loki/api/v1/push"
-         loki-retries: "5"
-         loki-batch-size: "400"
     networks:
       - loki
 
@@ -322,12 +304,6 @@ services:
       ORDERS_URL: http://orders_service:5600
       PAYMENTS_URL: http://payments_service:5700
       NOTIFICATIONS_URL: http://notifications_service:5800
-    logging:
-      driver: loki
-      options:
-        loki-url: "http://gateway:3100/loki/api/v1/push"
-        loki-retries: "5"
-        loki-batch-size: "400"
     networks:
       - loki
 
