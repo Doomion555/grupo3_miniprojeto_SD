@@ -69,6 +69,6 @@ Base de Dados (MySQL)
 Observabilidade
 --------------------
 - Prometheus: recolhe métricas de todos os serviços
+- Cadvisor: faz scrape das metricas de todos os dockers ativos
 - Loki: centraliza logs de todos os serviços, gateway e microserviços
-- Cadvisor: monitorização de containers Docker
-- Flog: gera tráfego de logs em tempo real para testar o sistema
+- Alloy : recebe logs de todos os dockers ativos
