@@ -71,4 +71,4 @@ Observabilidade
 - Prometheus: recolhe métricas de todos os serviços
 - Cadvisor: faz scrape das metricas de todos os dockers ativos
 - Loki: centraliza logs de todos os serviços, gateway e microserviços
-- Alloy : recebe logs de todos os dockers ativos
+- Loki_alloy : recebe logs de todos os dockers ativos
